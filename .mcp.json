@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "wsl.exe",
+            "args": [
+                "/home/janma/.config/herd-lite/bin/php",
+                "/home/janma/Timetable-notification/artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}
