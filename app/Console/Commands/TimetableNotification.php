@@ -34,12 +34,41 @@ class TimetableNotification extends Command
             'thru' => $endDate->toDateString() . 'T23:59:59.999Z',
         ])->throw();
 
-        $timetableEvents = collect($response->json('content', []))
-            ->sortBy(['date', 'timeStart'])
-            ->groupBy(function ($event) {
-                return Carbon::parse($event['date'])->locale('et_EE')->dayName;
-            });
+        $timetableEvents = $this->combineLessonEntriesByDay(
+            collect($response->json('content', []))->sortBy(['date', 'timeStart'])
+        );
 
         Mail::to('jan-martti.kiil@ametikool.ee')->send(new Timetable($timetableEvents, $startDate, $endDate));
+    }
+
+    public function combineLessonEntriesByDay($events): \Illuminate\Support\Collection
+    {
+        return $events
+            ->groupBy(function ($event) {
+                return ucfirst(Carbon::parse($event['date'])->locale('et_EE')->dayName);
+            })
+            ->map(function ($dayEvents) {
+                return $dayEvents
+                    ->groupBy(function ($event) {
+                        return $event['nameEt']
+                            ?? $event['nameEn']
+                            ?? $event['nameRu']
+                            ?? $event['subject']
+                            ?? $event['name']
+                            ?? 'Lesson';
+                    })
+                    ->map(function ($lessonEvents) {
+                        $firstEvent = $lessonEvents->first();
+
+                        $startTimes = $lessonEvents->pluck('timeStart')->filter()->all();
+                        $endTimes = $lessonEvents->pluck('timeEnd')->filter()->all();
+
+                        return array_merge($firstEvent, [
+                            'timeStart' => $startTimes ? min($startTimes) : ($firstEvent['timeStart'] ?? '—'),
+                            'timeEnd' => $endTimes ? max($endTimes) : ($firstEvent['timeEnd'] ?? '—'),
+                        ]);
+                    })
+                    ->values();
+            });
     }
 }
